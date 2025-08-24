@@ -1,0 +1,70 @@
+name: CloudWatch Logs Optimizer
+
+on:
+  schedule:
+    # Run monthly on 10th at 08:00 UTC for log retention management
+    - cron: '0 8 10 * *'
+  workflow_dispatch: # Allow manual triggering
+    inputs:
+      dry_run:
+        description: 'Run in dry-run mode (test without making changes)'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+        - 'true'
+        - 'false'
+      set_retention_policies:
+        description: 'Automatically set retention policies'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+        - 'true'
+        - 'false'
+      delete_empty_groups:
+        description: 'Delete inactive/empty log groups'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+        - 'true'
+        - 'false'
+      default_retention:
+        description: 'Default retention period in days'
+        required: false
+        default: '14'
+
+jobs:
+  cloudwatch-logs-optimizer:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run CloudWatch Logs Optimizer
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION || 'us-east-1' }}
+        REGIONS: ${{ vars.REGIONS }}
+        SET_RETENTION_POLICIES: ${{ inputs.set_retention_policies || vars.SET_RETENTION_POLICIES || 'false' }}
+        DEFAULT_RETENTION_DAYS: ${{ inputs.default_retention || vars.DEFAULT_RETENTION_DAYS || '14' }}
+        CRITICAL_LOG_RETENTION: ${{ vars.CRITICAL_LOG_RETENTION || '30' }}
+        DELETE_EMPTY_GROUPS: ${{ inputs.delete_empty_groups || vars.DELETE_EMPTY_GROUPS || 'false' }}
+        EMPTY_GROUP_DAYS: ${{ vars.EMPTY_GROUP_DAYS || '30' }}
+        EXCLUDE_PATTERNS: ${{ vars.LOG_EXCLUDE_PATTERNS }}
+        DRY_RUN: ${{ inputs.dry_run || vars.DRY_RUN || 'true' }}
+        ALERT_WEBHOOK: ${{ secrets.ALERT_WEBHOOK }}
+      run: python cloudwatch_logs_optimizer.py

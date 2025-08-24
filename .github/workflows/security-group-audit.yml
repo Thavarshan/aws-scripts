@@ -1,0 +1,74 @@
+name: Security Group Audit
+
+on:
+  schedule:
+    # Run weekly on Mondays at 07:00 UTC for security review
+    - cron: '0 7 * * 1'
+  workflow_dispatch: # Allow manual triggering
+    inputs:
+      dry_run:
+        description: 'Run in dry-run mode (test without deleting security groups)'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+        - 'true'
+        - 'false'
+      check_unused:
+        description: 'Check for unused security groups'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+        - 'true'
+        - 'false'
+      check_permissive:
+        description: 'Check for overly permissive rules'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+        - 'true'
+        - 'false'
+      auto_delete_unused:
+        description: 'Automatically delete unused security groups (DANGEROUS!)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+        - 'true'
+        - 'false'
+
+jobs:
+  security-group-audit:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run Security Group Audit
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION || 'us-east-1' }}
+        REGIONS: ${{ vars.REGIONS }}
+        CHECK_UNUSED: ${{ inputs.check_unused || vars.CHECK_UNUSED || 'true' }}
+        CHECK_PERMISSIVE: ${{ inputs.check_permissive || vars.CHECK_PERMISSIVE || 'true' }}
+        CHECK_SUSPICIOUS_PORTS: ${{ vars.CHECK_SUSPICIOUS_PORTS || 'true' }}
+        AUTO_DELETE_UNUSED: ${{ inputs.auto_delete_unused || vars.AUTO_DELETE_UNUSED || 'false' }}
+        EXCLUDE_DEFAULT: ${{ vars.EXCLUDE_DEFAULT || 'true' }}
+        ALERT_ON_HIGH_RISK: ${{ vars.ALERT_ON_HIGH_RISK || 'false' }}
+        DRY_RUN: ${{ inputs.dry_run || vars.DRY_RUN || 'true' }}
+        ALERT_WEBHOOK: ${{ secrets.ALERT_WEBHOOK }}
+      run: python security_group_audit.py

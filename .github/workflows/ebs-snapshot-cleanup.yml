@@ -1,0 +1,62 @@
+name: EBS Snapshot Cleanup
+
+on:
+  schedule:
+    # Run weekly on Saturdays at 10:00 UTC for snapshot cleanup
+    - cron: '0 10 * * 6'
+  workflow_dispatch: # Allow manual triggering
+    inputs:
+      dry_run:
+        description: 'Run in dry-run mode (test without deleting snapshots)'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+        - 'true'
+        - 'false'
+      daily_retention:
+        description: 'Keep daily snapshots for X days'
+        required: false
+        default: '7'
+      weekly_retention:
+        description: 'Keep weekly snapshots for X weeks'
+        required: false
+        default: '4'
+      monthly_retention:
+        description: 'Keep monthly snapshots for X months'
+        required: false
+        default: '3'
+
+jobs:
+  ebs-snapshot-cleanup:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run EBS Snapshot Cleanup
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION || 'us-east-1' }}
+        REGIONS: ${{ vars.REGIONS }}
+        DAILY_RETENTION_DAYS: ${{ inputs.daily_retention || vars.DAILY_RETENTION_DAYS || '7' }}
+        WEEKLY_RETENTION_WEEKS: ${{ inputs.weekly_retention || vars.WEEKLY_RETENTION_WEEKS || '4' }}
+        MONTHLY_RETENTION_MONTHS: ${{ inputs.monthly_retention || vars.MONTHLY_RETENTION_MONTHS || '3' }}
+        MIN_SNAPSHOT_AGE_DAYS: ${{ vars.MIN_SNAPSHOT_AGE_DAYS || '1' }}
+        EXCLUDE_TAGS: ${{ vars.EXCLUDE_TAGS }}
+        COST_THRESHOLD: ${{ vars.COST_THRESHOLD || '1.0' }}
+        DRY_RUN: ${{ inputs.dry_run || vars.DRY_RUN || 'true' }}
+        ALERT_WEBHOOK: ${{ secrets.ALERT_WEBHOOK }}
+      run: python ebs_snapshot_cleanup.py

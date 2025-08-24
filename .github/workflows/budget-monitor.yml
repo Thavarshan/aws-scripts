@@ -1,0 +1,53 @@
+name: AWS Budget Monitor
+
+on:
+  schedule:
+    # Run every 6 hours to monitor budget throughout the day
+    - cron: '0 */6 * * *'
+  workflow_dispatch: # Allow manual triggering
+    inputs:
+      dry_run:
+        description: 'Run in dry-run mode (test without triggering scripts)'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+        - 'true'
+        - 'false'
+
+jobs:
+  budget-monitor:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run Budget Monitor
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION || 'us-east-1' }}
+        MONTHLY_BUDGET: ${{ vars.MONTHLY_BUDGET || '10.00' }}
+        WARNING_THRESHOLD: ${{ vars.WARNING_THRESHOLD || '75' }}
+        CRITICAL_THRESHOLD: ${{ vars.CRITICAL_THRESHOLD || '90' }}
+        EMERGENCY_THRESHOLD: ${{ vars.EMERGENCY_THRESHOLD || '100' }}
+        ENABLE_SCRIPT_TRIGGERS: ${{ vars.ENABLE_SCRIPT_TRIGGERS || 'true' }}
+        DRY_RUN: ${{ inputs.dry_run || vars.DRY_RUN || 'false' }}
+        ALERT_WEBHOOK: ${{ secrets.ALERT_WEBHOOK }}
+        # Pass through EC2 auto-off settings for triggered scripts
+        REGIONS: ${{ vars.REGIONS }}
+        TAG_KEY: ${{ vars.TAG_KEY || 'auto-off' }}
+        TAG_VALUE: ${{ vars.TAG_VALUE || 'true' }}
+        HIBERNATE: ${{ vars.HIBERNATE || 'false' }}
+      run: python budget_monitor.py

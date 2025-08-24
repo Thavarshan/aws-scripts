@@ -1,0 +1,74 @@
+name: S3 Lifecycle Optimizer
+
+on:
+  schedule:
+    # Run monthly on 15th at 11:00 UTC for S3 optimization review
+    - cron: '0 11 15 * *'
+  workflow_dispatch: # Allow manual triggering
+    inputs:
+      dry_run:
+        description: 'Run in dry-run mode (test without making changes)'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+        - 'true'
+        - 'false'
+      enable_lifecycle_policies:
+        description: 'Enable automatic lifecycle policy creation'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+        - 'true'
+        - 'false'
+      enable_intelligent_tiering:
+        description: 'Enable S3 Intelligent-Tiering'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+        - 'true'
+        - 'false'
+      clean_incomplete_uploads:
+        description: 'Clean up incomplete multipart uploads'
+        required: false
+        default: 'true'
+        type: choice
+        options:
+        - 'true'
+        - 'false'
+
+jobs:
+  s3-lifecycle-optimizer:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run S3 Lifecycle Optimizer
+      env:
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        AWS_DEFAULT_REGION: ${{ vars.AWS_DEFAULT_REGION || 'us-east-1' }}
+        BUCKETS: ${{ vars.S3_BUCKETS }}
+        ENABLE_LIFECYCLE_POLICIES: ${{ inputs.enable_lifecycle_policies || vars.ENABLE_LIFECYCLE_POLICIES || 'false' }}
+        TRANSITION_TO_IA_DAYS: ${{ vars.TRANSITION_TO_IA_DAYS || '30' }}
+        TRANSITION_TO_GLACIER_DAYS: ${{ vars.TRANSITION_TO_GLACIER_DAYS || '90' }}
+        ENABLE_INTELLIGENT_TIERING: ${{ inputs.enable_intelligent_tiering || vars.ENABLE_INTELLIGENT_TIERING || 'false' }}
+        CLEAN_INCOMPLETE_UPLOADS: ${{ inputs.clean_incomplete_uploads || vars.CLEAN_INCOMPLETE_UPLOADS || 'true' }}
+        INCOMPLETE_UPLOAD_DAYS: ${{ vars.INCOMPLETE_UPLOAD_DAYS || '7' }}
+        DRY_RUN: ${{ inputs.dry_run || vars.DRY_RUN || 'true' }}
+        ALERT_WEBHOOK: ${{ secrets.ALERT_WEBHOOK }}
+      run: python s3_lifecycle_optimizer.py
